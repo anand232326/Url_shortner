@@ -1,65 +1,82 @@
-version: '3.8'
-
 services:
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - web_app_1
-      - web_app_2
-
-  web_app_1:
-    build: .
-    command: gunicorn url_shortner.wsgi:application --bind 0.0.0.0:8000 --workers 3
-    volumes:
-      - .:/app
-    environment:
-      - DB_NAME=tinyurl_db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgrespassword
-      - DB_HOST=db
-      - DB_PORT=5432
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    depends_on:
-      - db
-      - redis
-
-  web_app_2:
-    build: .
-    command: gunicorn url_shortner.wsgi:application --bind 0.0.0.0:8000 --workers 3
-    volumes:
-      - .:/app
-    environment:
-      - DB_NAME=tinyurl_db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgrespassword
-      - DB_HOST=db
-      - DB_PORT=5432
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    depends_on:
-      - db
-      - redis
-
   db:
     image: postgres:17-alpine
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    container_name: django-db-1
     environment:
-      - POSTGRES_DB=tinyurl_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgrespassword
+      POSTGRES_DB: tinyurl_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - django_default
 
   redis:
     image: redis:alpine
+    container_name: django-redis-1
     ports:
       - "6379:6379"
+    networks:
+      - django_default
+
+  web_app_1:
+    build: .
+    container_name: django-web_app_1-1
+    command: gunicorn url_shortner.wsgi:application --bind 0.0.0.0:8000 --workers 2
+    volumes:
+      - .:/app
+    environment:
+      - DB_NAME=tinyurl_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgrespassword
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - db
+      - redis
+    networks:
+      - django_default
+
+  web_app_2:
+    build: .
+    container_name: django-web_app_2-1
+    command: gunicorn url_shortner.wsgi:application --bind 0.0.0.0:8000 --workers 2
+    volumes:
+      - .:/app
+    environment:
+      - DB_NAME=tinyurl_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgrespassword
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - db
+      - redis
+    networks:
+      - django_default
+
+  nginx:
+    image: nginx:alpine
+    container_name: django-nginx-1
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web_app_1
+      - web_app_2
+    networks:
+      - django_default
 
 volumes:
   postgres_data:
+
+networks:
+  django_default:
+    driver: bridge
